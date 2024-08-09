@@ -1,5 +1,5 @@
 use core::fmt;
-use std::{any::Any, hash::Hash, sync::Arc};
+use std::{any::Any, collections::BTreeMap, hash::Hash, sync::Arc};
 
 use datafusion::{
     arrow::{
@@ -13,17 +13,34 @@ use datafusion::{
         stream::RecordBatchStreamAdapter, DisplayAs, DisplayFormatType, ExecutionMode,
         ExecutionPlan, Partitioning, PlanProperties,
     },
-    sql::TableReference,
 };
-use execute::HttpContext;
 use futures::TryFutureExt;
+use indexmap::IndexMap;
+use open_dds::{
+    arguments::ArgumentName,
+    query::Alias,
+    types::{DataConnectorArgumentName, FieldName},
+};
+use open_dds::{
+    identifier::Identifier,
+    query::{
+        ModelSelection, ModelTarget, ObjectFieldSelection, ObjectFieldTarget, ObjectSubSelection,
+    },
+};
 use tracing_util::{FutureExt, SpanVisibility, TraceableError};
+
+use execute::{
+    plan::{
+        self, Argument, Relationship, ResolvedField, ResolvedFilterExpression,
+        ResolvedQueryExecutionPlan, ResolvedQueryNode,
+    },
+    HttpContext,
+};
+use ir::{NdcFieldAlias, NdcRelationshipName};
+use open_dds::data_connector::{CollectionName, DataConnectorColumnName};
 
 #[derive(Debug, thiserror::Error)]
 pub enum ExecutionPlanError {
-    #[error("{0}")]
-    NDCDowngradeError(#[from] execute::ndc::migration::NdcDowngradeError),
-
     #[error("{0}")]
     NDCExecutionError(#[from] execute::ndc::client::Error),
 
@@ -47,54 +64,92 @@ impl TraceableError for ExecutionPlanError {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub(crate) struct NDCQuery {
-    pub(crate) table: TableReference,
-    pub(crate) query: ndc_models::QueryRequest,
-    pub(crate) data_source_name: Arc<ndc_models::CollectionName>,
+pub(crate) struct ModelQuery {
+    pub(crate) model_selection: ModelSelection,
     pub(crate) schema: DFSchemaRef,
 }
 
-impl Hash for NDCQuery {
+impl Hash for ModelQuery {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        self.data_source_name.hash(state);
-        format!("{:#?}", self.query).hash(state);
-        self.schema.hash(state);
+        self.model_selection.target.subgraph.hash(state);
+        self.model_selection.target.model_name.hash(state);
+        // Implementing a full hash function is hard because
+        // you want to ignore the order of keys in hash maps.
+        // So, for now, we only hash some basic information.
     }
 }
 
-impl Eq for NDCQuery {}
+impl Eq for ModelQuery {}
 
-impl NDCQuery {
-    pub(crate) fn project(
-        mut self,
-        schema: DFSchemaRef,
-        projection: &[String],
+impl ModelQuery {
+    pub(crate) fn new(
+        model: &crate::catalog::model::Model,
+        arguments: &BTreeMap<ArgumentName, serde_json::Value>,
+        projected_schema: DFSchemaRef,
     ) -> datafusion::error::Result<Self> {
-        let mut current_fields = self.query.query.fields.take().ok_or_else(|| {
-            DataFusionError::Internal("empty fields found in ndcscan for projection".to_string())
-        })?;
-        let new_fields = projection
-            .iter()
-            .map(|projected_field| {
-                current_fields
-                    .swap_remove(projected_field.as_str())
-                    .map(|field| (ndc_models::FieldName::from(projected_field.as_str()), field))
-                    .ok_or_else(|| {
-                        DataFusionError::Internal(
-                            "failed to lookup projectd field in ndcscan".to_string(),
+        let mut field_selection = IndexMap::new();
+        for field in projected_schema.fields() {
+            let field_name = {
+                let field_name = Identifier::new(field.name().clone()).map_err(|e| {
+                    DataFusionError::Internal(format!(
+                        "field name conversion failed {}: {}",
+                        field.name(),
+                        e
+                    ))
+                })?;
+                FieldName::new(field_name)
+            };
+            field_selection.insert(
+                Alias::new(field_name.as_ref().clone()),
+                ObjectSubSelection::Field(ObjectFieldSelection {
+                    target: ObjectFieldTarget {
+                        field_name,
+                        arguments: IndexMap::new(),
+                    },
+                    selection: None,
+                }),
+            );
+        }
+
+        let model_selection = ModelSelection {
+            target: ModelTarget {
+                subgraph: model.subgraph.clone(),
+                model_name: model.name.clone(),
+                arguments: arguments
+                    .iter()
+                    .map(|(argument_name, value)| {
+                        (
+                            argument_name.clone(),
+                            open_dds::query::Value::Literal(value.clone()),
                         )
                     })
-            })
-            .collect::<Result<_, DataFusionError>>()?;
-        let _ = std::mem::replace(&mut self.query.query.fields, Some(new_fields));
-        let _ = std::mem::replace(&mut self.schema, schema);
-        Ok(self)
+                    .collect(),
+                filter: None,
+                order_by: vec![],
+                limit: None,
+                offset: None,
+            },
+            selection: field_selection,
+        };
+        let model_query_node = ModelQuery {
+            model_selection,
+            schema: projected_schema,
+        };
+        Ok(model_query_node)
+    }
+
+    pub(crate) fn project(mut self, schema: DFSchemaRef, projection: &[String]) -> Self {
+        self.model_selection
+            .selection
+            .retain(|k, _v| projection.iter().any(|column| column == k.as_str()));
+        self.schema = schema;
+        self
     }
 }
 
-impl UserDefinedLogicalNodeCore for NDCQuery {
+impl UserDefinedLogicalNodeCore for ModelQuery {
     fn name(&self) -> &str {
-        "NDCQuery"
+        "ModelQuery"
     }
 
     fn inputs(&self) -> Vec<&LogicalPlan> {
@@ -112,7 +167,20 @@ impl UserDefinedLogicalNodeCore for NDCQuery {
 
     /// For example: `TopK: k=10`
     fn fmt_for_explain(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "NDCQuery: query={:#?}", self.query)
+        let projection = format!(
+            ", projection=[{}]",
+            self.model_selection
+                .selection
+                .keys()
+                .map(std::string::ToString::to_string)
+                .collect::<Vec<_>>()
+                .join(",")
+        );
+        write!(
+            f,
+            "ModelQuery: model={}:{}{projection}",
+            self.model_selection.target.subgraph, self.model_selection.target.model_name,
+        )
     }
 
     fn with_exprs_and_inputs(
@@ -127,7 +195,11 @@ impl UserDefinedLogicalNodeCore for NDCQuery {
 #[derive(Debug, Clone)]
 pub(crate) struct NDCPushDown {
     http_context: Arc<execute::HttpContext>,
-    query: Arc<ndc_models::QueryRequest>,
+    collection_name: CollectionName,
+    arguments: BTreeMap<DataConnectorArgumentName, serde_json::Value>,
+    fields: IndexMap<NdcFieldAlias, DataConnectorColumnName>,
+    filter: Option<ResolvedFilterExpression>,
+    collection_relationships: BTreeMap<NdcRelationshipName, Relationship>,
     data_connector: Arc<metadata_resolve::DataConnectorLink>,
     projected_schema: SchemaRef,
     cache: PlanProperties,
@@ -137,13 +209,21 @@ impl NDCPushDown {
     pub(crate) fn new(
         http_context: Arc<HttpContext>,
         schema: SchemaRef,
-        query: Arc<ndc_models::QueryRequest>,
+        collection_name: CollectionName,
+        arguments: BTreeMap<DataConnectorArgumentName, serde_json::Value>,
+        fields: IndexMap<NdcFieldAlias, DataConnectorColumnName>,
+        filter: Option<ResolvedFilterExpression>,
+        collection_relationships: BTreeMap<NdcRelationshipName, Relationship>,
         data_connector: Arc<metadata_resolve::DataConnectorLink>,
     ) -> Self {
         let cache = Self::compute_properties(schema.clone());
         Self {
             http_context,
-            query,
+            collection_name,
+            arguments,
+            fields,
+            filter,
+            collection_relationships,
             data_connector,
             projected_schema: schema,
             cache,
@@ -202,10 +282,54 @@ impl ExecutionPlan for NDCPushDown {
             .ok_or_else(|| {
                 DataFusionError::External(Box::new(ExecutionPlanError::TracingContextNotFound))
             })?;
+
+        let query_execution_plan = ResolvedQueryExecutionPlan {
+            query_node: ResolvedQueryNode {
+                fields: Some(
+                    self.fields
+                        .iter()
+                        .map(|(field_name, connector_column_name)| {
+                            (
+                                field_name.clone(),
+                                ResolvedField::Column {
+                                    column: connector_column_name.clone(),
+                                    fields: None,
+                                    arguments: BTreeMap::new(),
+                                },
+                            )
+                        })
+                        .collect(),
+                ),
+                aggregates: None,
+                limit: None,
+                offset: None,
+                order_by: None,
+                predicate: self.filter.clone(),
+            },
+            collection: self.collection_name.clone(),
+            arguments: self
+                .arguments
+                .iter()
+                .map(|(argument, value)| {
+                    (
+                        argument.clone(),
+                        Argument::Literal {
+                            value: value.clone(),
+                        },
+                    )
+                })
+                .collect(),
+            collection_relationships: self.collection_relationships.clone(),
+            variables: None,
+            data_connector: &self.data_connector,
+        };
+        let query_request = plan::ndc_request::make_ndc_query_request(query_execution_plan)
+            .map_err(|e| DataFusionError::Internal(format!("error creating ndc request: {e}")))?;
+
         let fut = fetch_from_data_connector(
             self.projected_schema.clone(),
             self.http_context.clone(),
-            self.query.clone(),
+            query_request,
             self.data_connector.clone(),
         )
         .with_context((*otel_cx).clone())
@@ -221,20 +345,11 @@ impl ExecutionPlan for NDCPushDown {
 pub async fn fetch_from_data_connector(
     schema: SchemaRef,
     http_context: Arc<HttpContext>,
-    query_request: Arc<ndc_models::QueryRequest>,
+    query_request: execute::ndc::NdcQueryRequest,
     data_connector: Arc<metadata_resolve::DataConnectorLink>,
 ) -> Result<RecordBatch, ExecutionPlanError> {
     let tracer = tracing_util::global_tracer();
-    let query_request = match data_connector.capabilities.supported_ndc_version {
-        metadata_resolve::data_connectors::NdcVersion::V01 => execute::ndc::NdcQueryRequest::V01(
-            execute::ndc::migration::v01::downgrade_v02_query_request(
-                query_request.as_ref().clone(),
-            )?,
-        ),
-        metadata_resolve::data_connectors::NdcVersion::V02 => {
-            execute::ndc::NdcQueryRequest::V02(query_request.as_ref().clone())
-        }
-    };
+
     let ndc_response =
         execute::fetch_from_data_connector(&http_context, &query_request, &data_connector, None)
             .await?;

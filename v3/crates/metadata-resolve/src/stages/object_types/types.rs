@@ -1,6 +1,5 @@
 use super::error::ObjectTypesError;
 use crate::types::subgraph::QualifiedTypeReference;
-use crate::ArgumentInfo;
 use indexmap::IndexMap;
 use open_dds::arguments::ArgumentName;
 use open_dds::models::ModelName;
@@ -14,7 +13,7 @@ use crate::types::subgraph::Qualified;
 
 use lang_graphql::ast::common as ast;
 use open_dds::data_connector::{
-    DataConnectorColumnName, DataConnectorName, DataConnectorObjectType,
+    DataConnectorColumnName, DataConnectorName, DataConnectorObjectType, DataConnectorOperatorName,
 };
 
 /// A mapping from a data connector to their objects, which contain field types.
@@ -128,7 +127,19 @@ pub struct FieldDefinition {
     pub field_type: QualifiedTypeReference,
     pub description: Option<String>,
     pub deprecated: Option<Deprecated>,
-    pub field_arguments: IndexMap<ArgumentName, ArgumentInfo>,
+    pub field_arguments: IndexMap<ArgumentName, FieldArgumentInfo>,
+}
+
+impl FieldDefinition {
+    pub fn is_deprecated(&self) -> bool {
+        self.deprecated.is_some()
+    }
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
+pub struct FieldArgumentInfo {
+    pub argument_type: QualifiedTypeReference,
+    pub description: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
@@ -147,7 +158,7 @@ pub struct FieldMapping {
     pub column: DataConnectorColumnName,
     pub column_type: ndc_models::Type,
     pub column_type_representation: Option<ndc_models::TypeRepresentation>,
-    pub equal_operators: Vec<ndc_models::ComparisonOperatorName>,
+    pub equal_operators: Vec<DataConnectorOperatorName>,
     pub argument_mappings: BTreeMap<ArgumentName, DataConnectorArgumentName>,
 }
 

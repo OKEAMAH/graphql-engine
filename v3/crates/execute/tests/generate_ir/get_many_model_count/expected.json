@@ -32,7 +32,7 @@
                                     "name": "db"
                                   },
                                   "url": {
-                                    "singleUrl": "http://postgres_connector:8080/"
+                                    "singleUrl": "http://localhost:8080/"
                                   },
                                   "headers": {
                                     "hasura-m-auth-token": "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_.~!#$&'()*+,/:;=?@[]\""
@@ -87,6 +87,7 @@
                                   }
                                 },
                                 "argument_mappings": {},
+                                "data_connector_link_argument_presets": {},
                                 "source_arguments": {}
                               },
                               "capabilities": {
@@ -160,7 +161,7 @@
                                           "name": "db"
                                         },
                                         "url": {
-                                          "singleUrl": "http://postgres_connector:8080/"
+                                          "singleUrl": "http://localhost:8080/"
                                         },
                                         "headers": {
                                           "hasura-m-auth-token": "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_.~!#$&'()*+,/:;=?@[]\""
@@ -215,6 +216,7 @@
                                         }
                                       },
                                       "argument_mappings": {},
+                                      "data_connector_link_argument_presets": {},
                                       "source_arguments": {}
                                     },
                                     "capabilities": {
@@ -288,7 +290,7 @@
                                                 "name": "db"
                                               },
                                               "url": {
-                                                "singleUrl": "http://postgres_connector:8080/"
+                                                "singleUrl": "http://localhost:8080/"
                                               },
                                               "headers": {
                                                 "hasura-m-auth-token": "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_.~!#$&'()*+,/:;=?@[]\""
@@ -349,6 +351,7 @@
                                               }
                                             },
                                             "argument_mappings": {},
+                                            "data_connector_link_argument_presets": {},
                                             "source_arguments": {}
                                           },
                                           "capabilities": {
@@ -451,7 +454,8 @@
                                                 "subgraph": "default",
                                                 "name": "article"
                                               },
-                                              "argument_types": {}
+                                              "argument_types": {},
+                                              "deprecated": false
                                             }
                                           }
                                         },
@@ -523,7 +527,7 @@
                 "name": "db"
               },
               "url": {
-                "singleUrl": "http://postgres_connector:8080/"
+                "singleUrl": "http://localhost:8080/"
               },
               "headers": {
                 "hasura-m-auth-token": "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_.~!#$&'()*+,/:;=?@[]\""
@@ -549,7 +553,7 @@
                             "name": "db"
                           },
                           "url": {
-                            "singleUrl": "http://postgres_connector:8080/"
+                            "singleUrl": "http://localhost:8080/"
                           },
                           "headers": {
                             "hasura-m-auth-token": "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_.~!#$&'()*+,/:;=?@[]\""
@@ -586,7 +590,7 @@
                                       "name": "db"
                                     },
                                     "url": {
-                                      "singleUrl": "http://postgres_connector:8080/"
+                                      "singleUrl": "http://localhost:8080/"
                                     },
                                     "headers": {
                                       "hasura-m-auth-token": "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_.~!#$&'()*+,/:;=?@[]\""
@@ -623,7 +627,7 @@
                                                 "name": "db"
                                               },
                                               "url": {
-                                                "singleUrl": "http://postgres_connector:8080/"
+                                                "singleUrl": "http://localhost:8080/"
                                               },
                                               "headers": {
                                                 "hasura-m-auth-token": "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_.~!#$&'()*+,/:;=?@[]\""
@@ -669,7 +673,7 @@
                                             },
                                             "aggregate_selection": null
                                           },
-                                          "name": "[{\"subgraph\":\"default\",\"name\":\"author\"},\"Articles\"]",
+                                          "name": "default___author__Articles",
                                           "relationship_info": {
                                             "relationship_name": "Articles",
                                             "relationship_type": "Array",
@@ -683,7 +687,7 @@
                                                 "name": "db"
                                               },
                                               "url": {
-                                                "singleUrl": "http://postgres_connector:8080/"
+                                                "singleUrl": "http://localhost:8080/"
                                               },
                                               "headers": {
                                                 "hasura-m-auth-token": "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_.~!#$&'()*+,/:;=?@[]\""
@@ -749,7 +753,7 @@
                                                     "name": "db"
                                                   },
                                                   "url": {
-                                                    "singleUrl": "http://postgres_connector:8080/"
+                                                    "singleUrl": "http://localhost:8080/"
                                                   },
                                                   "headers": {
                                                     "hasura-m-auth-token": "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_.~!#$&'()*+,/:;=?@[]\""
@@ -810,6 +814,7 @@
                                                   }
                                                 },
                                                 "argument_mappings": {},
+                                                "data_connector_link_argument_presets": {},
                                                 "source_arguments": {}
                                               },
                                               "capabilities": {
@@ -843,7 +848,7 @@
                                   },
                                   "aggregate_selection": null
                                 },
-                                "name": "[{\"subgraph\":\"default\",\"name\":\"article\"},\"Author\"]",
+                                "name": "default___article__Author",
                                 "relationship_info": {
                                   "relationship_name": "Author",
                                   "relationship_type": "Object",
@@ -857,7 +862,7 @@
                                       "name": "db"
                                     },
                                     "url": {
-                                      "singleUrl": "http://postgres_connector:8080/"
+                                      "singleUrl": "http://localhost:8080/"
                                     },
                                     "headers": {
                                       "hasura-m-auth-token": "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_.~!#$&'()*+,/:;=?@[]\""
@@ -917,7 +922,7 @@
                                           "name": "db"
                                         },
                                         "url": {
-                                          "singleUrl": "http://postgres_connector:8080/"
+                                          "singleUrl": "http://localhost:8080/"
                                         },
                                         "headers": {
                                           "hasura-m-auth-token": "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_.~!#$&'()*+,/:;=?@[]\""
@@ -972,6 +977,7 @@
                                         }
                                       },
                                       "argument_mappings": {},
+                                      "data_connector_link_argument_presets": {},
                                       "source_arguments": {}
                                     },
                                     "capabilities": {
@@ -1005,7 +1011,7 @@
                         },
                         "aggregate_selection": null
                       },
-                      "name": "[{\"subgraph\":\"default\",\"name\":\"commandArticle\"},\"article\"]",
+                      "name": "default___commandArticle__article",
                       "relationship_info": {
                         "relationship_name": "article",
                         "relationship_type": "Object",
@@ -1019,7 +1025,7 @@
                             "name": "db"
                           },
                           "url": {
-                            "singleUrl": "http://postgres_connector:8080/"
+                            "singleUrl": "http://localhost:8080/"
                           },
                           "headers": {
                             "hasura-m-auth-token": "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_.~!#$&'()*+,/:;=?@[]\""
@@ -1079,7 +1085,7 @@
                                 "name": "db"
                               },
                               "url": {
-                                "singleUrl": "http://postgres_connector:8080/"
+                                "singleUrl": "http://localhost:8080/"
                               },
                               "headers": {
                                 "hasura-m-auth-token": "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_.~!#$&'()*+,/:;=?@[]\""
@@ -1134,6 +1140,7 @@
                               }
                             },
                             "argument_mappings": {},
+                            "data_connector_link_argument_presets": {},
                             "source_arguments": {}
                           },
                           "capabilities": {

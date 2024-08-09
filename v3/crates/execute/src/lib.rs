@@ -1,16 +1,10 @@
 mod error;
 mod explain;
-mod global_id;
-pub mod ir;
-pub mod model_tracking;
 pub mod ndc;
-mod plan;
+pub mod plan;
 mod process_response;
 mod query_usage;
 mod remote_joins;
-
-pub use plan::plan_expression;
-use plan::ExecuteQueryResult;
 
 use gql::normalized_ast::Operation;
 use hasura_authn_core::Session;
@@ -20,6 +14,7 @@ use lang_graphql::{
     http::{RawRequest, Response},
     schema::Schema,
 };
+use plan::ExecuteQueryResult;
 use schema::{GDSRoleNamespaceGetter, GDS};
 use tracing_util::{
     set_attribute_on_active_span, AttributeVisibility, ErrorVisibility, SpanVisibility, Traceable,
@@ -174,6 +169,13 @@ pub async fn execute_query_internal(
             "Execute query request",
             SpanVisibility::User,
             || {
+                if let Some(name) = &raw_request.operation_name {
+                    tracing_util::set_attribute_on_active_span(
+                        AttributeVisibility::Default,
+                        "operation_name",
+                        name.to_string(),
+                    );
+                }
                 tracing_util::set_attribute_on_active_span(
                     AttributeVisibility::Default,
                     "session.role",
@@ -206,8 +208,7 @@ pub async fn execute_query_internal(
                     // execute the query plan
                     let response = tracer
                         .in_span_async("execute", display_name, SpanVisibility::User, || {
-                            let all_usage_counts =
-                                model_tracking::get_all_usage_counts_in_query(&ir);
+                            let all_usage_counts = ir::get_all_usage_counts_in_query(&ir);
                             let serialized_data = serde_json::to_string(&all_usage_counts).unwrap();
 
                             set_attribute_on_active_span(
@@ -428,7 +429,7 @@ pub(crate) fn build_ir<'n, 's>(
     session: &Session,
     request_headers: &reqwest::header::HeaderMap,
     normalized_request: &'s Operation<'s, GDS>,
-) -> Result<ir::IR<'n, 's>, ir::error::Error> {
+) -> Result<ir::IR<'n, 's>, ir::Error> {
     let tracer = tracing_util::global_tracer();
     let ir = tracer.in_span(
         "generate_ir",
@@ -458,10 +459,10 @@ pub fn generate_ir<'n, 's>(
     session: &Session,
     request_headers: &reqwest::header::HeaderMap,
     normalized_request: &'s Operation<'s, GDS>,
-) -> Result<ir::IR<'n, 's>, ir::error::Error> {
+) -> Result<ir::IR<'n, 's>, ir::Error> {
     match &normalized_request.ty {
         ast::OperationType::Query => {
-            let query_ir = ir::query_root::generate_ir(
+            let query_ir = ir::generate_query_ir(
                 schema,
                 session,
                 request_headers,
@@ -470,7 +471,7 @@ pub fn generate_ir<'n, 's>(
             Ok(ir::IR::Query(query_ir))
         }
         ast::OperationType::Mutation => {
-            let mutation_ir = ir::mutation_root::generate_ir(
+            let mutation_ir = ir::generate_mutation_ir(
                 &normalized_request.selection_set,
                 &session.variables,
                 request_headers,
@@ -478,7 +479,7 @@ pub fn generate_ir<'n, 's>(
             Ok(ir::IR::Mutation(mutation_ir))
         }
         ast::OperationType::Subscription => {
-            Err(ir::error::InternalEngineError::SubscriptionsNotSupported)?
+            Err(ir::InternalEngineError::SubscriptionsNotSupported)?
         }
     }
 }

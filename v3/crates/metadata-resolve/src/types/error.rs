@@ -1,10 +1,13 @@
+use crate::stages::order_by_expressions::OrderByExpressionIdentifier;
 use crate::stages::{
     aggregates::AggregateExpressionError, apollo, boolean_expressions, data_connector_scalar_types,
     data_connectors, graphql_config, object_types, relay, scalar_boolean_expressions,
     type_permissions,
 };
 use crate::types::subgraph::{Qualified, QualifiedTypeName, QualifiedTypeReference};
+use crate::QualifiedBaseType;
 use open_dds::data_connector::DataConnectorColumnName;
+use open_dds::order_by_expression::OrderByExpressionName;
 use open_dds::{
     aggregates::AggregateExpressionName,
     arguments::ArgumentName,
@@ -41,11 +44,6 @@ pub enum Error {
     },
     #[error("unknown field {field_name:} in filterable fields defined for model {model_name:}")]
     UnknownFieldInFilterableFields {
-        model_name: ModelName,
-        field_name: FieldName,
-    },
-    #[error("unknown field {field_name:} in orderable fields defined for model {model_name:}")]
-    UnknownFieldInOrderableFields {
         model_name: ModelName,
         field_name: FieldName,
     },
@@ -439,7 +437,7 @@ pub enum Error {
     #[error("{0}")]
     ModelAggregateExpressionError(ModelAggregateExpressionError),
     #[error("{0}")]
-    DataConnectorError(#[from] data_connectors::DataConnectorError),
+    DataConnectorError(#[from] data_connectors::NamedDataConnectorError),
     #[error("{0}")]
     TypePermissionError(type_permissions::TypePermissionError),
     #[error("{0}")]
@@ -452,6 +450,61 @@ pub enum Error {
     DataConnectorScalarTypesError(
         #[from] data_connector_scalar_types::DataConnectorScalarTypesError,
     ),
+    #[error("Error in order by expression {order_by_expression_name}: {error}")]
+    OrderByExpressionError {
+        order_by_expression_name: Qualified<OrderByExpressionName>,
+        error: OrderByExpressionError,
+    },
+    #[error("Error in orderable fields of model {model_name}: {error}")]
+    ModelV1OrderableFieldsError {
+        model_name: Qualified<ModelName>,
+        error: OrderByExpressionError,
+    },
+    #[error(
+        "Unknown order by expression {order_by_expression_identifier} in in model {model_name}"
+    )]
+    UnknownOrderByExpressionIdentifier {
+        model_name: Qualified<ModelName>,
+        order_by_expression_identifier: Qualified<OrderByExpressionIdentifier>,
+    },
+    #[error("Type of order by expression {order_by_expression_name} does not match object type of model {model_name}.  Model type: {model_type}; order by expression type: {order_by_expression_type}")]
+    OrderByExpressionTypeMismatch {
+        model_name: Qualified<ModelName>,
+        model_type: Qualified<CustomTypeName>,
+        order_by_expression_name: Qualified<OrderByExpressionName>,
+        order_by_expression_type: Qualified<CustomTypeName>,
+    },
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum OrderByExpressionError {
+    #[error("unknown field {field_name} in orderable fields")]
+    UnknownFieldInOrderByExpression { field_name: FieldName },
+    #[error("The data type {data_type} has not been defined")]
+    UnknownOrderableType {
+        data_type: Qualified<CustomTypeName>,
+    },
+    #[error("Invalid orderable field {field_name}. Exactly one of `enable_order_by_directions` or `order_by_expression_name` must be specified.")]
+    InvalidOrderByExpressionOrderableField { field_name: FieldName },
+    #[error("The order by expression {order_by_expression_name} referenced in field {field_name} has not been defined")]
+    UnknownOrderByExpressionNameInOrderableField {
+        order_by_expression_name: OrderByExpressionName,
+        field_name: FieldName,
+    },
+    #[error("The order by expression {order_by_expression_name} referenced in orderable relationship {relationship_name} has not been defined")]
+    UnknownOrderByExpressionNameInOrderableRelationship {
+        order_by_expression_name: OrderByExpressionName,
+        relationship_name: RelationshipName,
+    },
+    #[error("The type of the order by expression {order_by_expression_name} referenced in field {field_name} does not match the field type. Order by expression type: {order_by_expression_type}; field type: {field_type}. ")]
+    OrderableFieldTypeError {
+        order_by_expression_name: OrderByExpressionName,
+        order_by_expression_type: CustomTypeName,
+        field_type: QualifiedBaseType,
+        field_name: FieldName,
+    },
+    #[error("{message}")]
+    UnsupportedFeature { message: String },
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -586,6 +639,10 @@ pub enum TypePredicateError {
         field_name: FieldName,
         type_name: Qualified<CustomTypeName>,
     },
+    #[error("boolean expression '{boolean_expression_name:}' not found")]
+    BooleanExpressionNotFound {
+        boolean_expression_name: Qualified<CustomTypeName>,
+    },
     #[error(
         "the source data connector {data_connector:} for type {type_name:} has not been defined"
     )]
@@ -607,7 +664,7 @@ pub enum TypePredicateError {
     NestedPredicateInTypePredicate {
         type_name: Qualified<CustomTypeName>,
     },
-    #[error("relationship '{relationship_name:}' used in predicate for type '{type_name:}' does not exist")]
+    #[error("relationship '{relationship_name:}' is used in predicate but does not exist in comparableRelationships in boolean expression for type '{type_name:}'")]
     UnknownRelationshipInTypePredicate {
         relationship_name: RelationshipName,
         type_name: Qualified<CustomTypeName>,
@@ -658,15 +715,31 @@ pub enum TypePredicateError {
         field_name: FieldName,
         data_connector_name: Qualified<DataConnectorName>,
     },
+    #[error("Operator {operator_name:} not found for field {field_name:}")]
+    OperatorNotFoundForField {
+        field_name: FieldName,
+        operator_name: OperatorName,
+    },
     #[error(
-        "missing equality operator for source column {ndc_column:} in data connector {data_connector_name:} \
+        "{location:} - missing equality operator for source column {ndc_column:} in data connector {data_connector_name:} \
          which is mapped to field {field_name:} in type {type_name:}"
     )]
     MissingEqualOperator {
+        location: String,
         type_name: Qualified<CustomTypeName>,
         field_name: FieldName,
         ndc_column: DataConnectorColumnName,
         data_connector_name: Qualified<DataConnectorName>,
+    },
+    #[error(
+        "Relationships across subgraphs are not supported in filter predicates. \
+         Relationship: {relationship_name:} is defined between source data connector: {source_data_connector:} \
+         and target data connector: {target_data_connector:}"
+    )]
+    RelationshipAcrossSubgraphs {
+        relationship_name: RelationshipName,
+        source_data_connector: Qualified<DataConnectorName>,
+        target_data_connector: Qualified<DataConnectorName>,
     },
 }
 

@@ -1,3 +1,4 @@
+use crate::helpers::argument::get_argument_kind;
 use crate::helpers::types::{get_type_representation, mk_name};
 use crate::stages::{
     boolean_expressions, object_boolean_expressions, scalar_types, type_permissions,
@@ -5,6 +6,7 @@ use crate::stages::{
 use crate::types::error::Error;
 use crate::types::subgraph::{mk_qualified_type_reference, ArgumentInfo, Qualified};
 use indexmap::IndexMap;
+use open_dds::identifier::SubgraphName;
 
 use super::types::{Command, CommandGraphQlApi};
 use open_dds::commands::CommandV1;
@@ -15,7 +17,7 @@ use std::collections::BTreeMap;
 
 pub fn resolve_command(
     command: &CommandV1,
-    subgraph: &str,
+    subgraph: &SubgraphName,
     object_types: &BTreeMap<Qualified<CustomTypeName>, type_permissions::ObjectTypeWithPermissions>,
     scalar_types: &BTreeMap<Qualified<CustomTypeName>, scalar_types::ScalarTypeRepresentation>,
     object_boolean_expression_types: &BTreeMap<
@@ -25,7 +27,7 @@ pub fn resolve_command(
     boolean_expression_types: &boolean_expressions::BooleanExpressionTypes,
 ) -> Result<Command, Error> {
     let mut arguments = IndexMap::new();
-    let qualified_command_name = Qualified::new(subgraph.to_string(), command.name.clone());
+    let qualified_command_name = Qualified::new(subgraph.clone(), command.name.clone());
     let command_description = command.description.clone();
     // duplicate command arguments should not be allowed
     for argument in &command.arguments {
@@ -37,6 +39,13 @@ pub fn resolve_command(
             object_boolean_expression_types,
             boolean_expression_types,
         ) {
+            // is this an expression or not?
+            let argument_kind = get_argument_kind(
+                &argument.argument_type,
+                subgraph,
+                object_boolean_expression_types,
+                boolean_expression_types,
+            );
             if arguments
                 .insert(
                     argument.name.clone(),
@@ -45,6 +54,7 @@ pub fn resolve_command(
                             &argument.argument_type,
                             subgraph,
                         ),
+                        argument_kind,
                         description: argument.description.clone(),
                     },
                 )
@@ -87,7 +97,7 @@ pub fn resolve_command(
 
 fn type_exists(
     type_obj: &TypeReference,
-    subgraph: &str,
+    subgraph: &SubgraphName,
     object_types: &BTreeMap<Qualified<CustomTypeName>, type_permissions::ObjectTypeWithPermissions>,
     scalar_types: &BTreeMap<Qualified<CustomTypeName>, scalar_types::ScalarTypeRepresentation>,
     object_boolean_expression_types: &BTreeMap<
@@ -108,8 +118,7 @@ fn type_exists(
         BaseType::Named(type_name) => match type_name {
             TypeName::Inbuilt(_) => true,
             TypeName::Custom(type_name) => {
-                let qualified_type_name =
-                    Qualified::new(subgraph.to_string(), type_name.to_owned());
+                let qualified_type_name = Qualified::new(subgraph.clone(), type_name.to_owned());
 
                 get_type_representation(
                     &qualified_type_name,

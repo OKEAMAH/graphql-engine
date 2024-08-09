@@ -24,19 +24,20 @@ pub use stages::aggregates::{
 };
 pub use stages::boolean_expressions::{
     BooleanExpressionComparableRelationship, BooleanExpressionError,
-    BooleanExpressionGraphqlConfig, ComparisonExpressionInfo, IncludeLogicalOperators,
-    ObjectComparisonExpressionInfo, ResolvedObjectBooleanExpressionType,
+    BooleanExpressionGraphqlConfig, BooleanExpressionGraphqlFieldConfig, ComparisonExpressionInfo,
+    IncludeLogicalOperators, ObjectComparisonExpressionInfo, ResolvedObjectBooleanExpressionType,
 };
 pub use stages::command_permissions::CommandWithPermissions;
 pub use stages::commands::Command;
 pub use stages::data_connectors;
 pub use stages::data_connectors::DataConnectorLink;
 pub use stages::model_permissions::{
-    FilterPermission, ModelPredicate, ModelTargetSource, ModelWithPermissions, SelectPermission,
-    UnaryComparisonOperator,
+    ArgumentPresets, FilterPermission, ModelPredicate, ModelTargetSource, ModelWithPermissions,
+    SelectPermission, UnaryComparisonOperator,
 };
 pub use stages::models::{Model, ModelSource};
 pub use stages::scalar_boolean_expressions::ResolvedScalarBooleanExpressionType;
+pub use types::warning::Warning;
 
 pub use stages::models_graphql::{
     ModelExpressionType, ModelOrderByExpression, SelectAggregateGraphQlDefinition,
@@ -46,8 +47,10 @@ pub use stages::object_boolean_expressions::{
     ObjectBooleanExpressionDataConnector, ObjectBooleanExpressionType,
 };
 pub use stages::object_types::{
-    FieldMapping, ObjectTypeRepresentation, ResolvedObjectApolloFederationConfig, TypeMapping,
+    FieldArgumentInfo, FieldMapping, ObjectTypeRepresentation,
+    ResolvedObjectApolloFederationConfig, TypeMapping,
 };
+pub use stages::order_by_expressions::{OrderByExpression, OrderByExpressions};
 pub use stages::relationships::{
     relationship_execution_category, CommandRelationshipTarget, ModelAggregateRelationshipTarget,
     ModelRelationshipTarget, ObjectTypeWithRelationships, RelationshipCapabilities,
@@ -55,13 +58,13 @@ pub use stages::relationships::{
     RelationshipModelMapping, RelationshipTarget,
 };
 pub use stages::scalar_types::ScalarTypeRepresentation;
-pub use stages::type_permissions::TypeInputPermission;
+pub use stages::type_permissions::{FieldPresetInfo, TypeInputPermission};
 pub use stages::{resolve, Metadata};
 pub use types::configuration;
 pub use types::error::Error;
 pub use types::permission::{ValueExpression, ValueExpressionOrPredicate};
 pub use types::subgraph::{
     deserialize_non_string_key_btreemap, deserialize_qualified_btreemap,
-    serialize_non_string_key_btreemap, serialize_qualified_btreemap, ArgumentInfo, Qualified,
-    QualifiedBaseType, QualifiedTypeName, QualifiedTypeReference,
+    serialize_non_string_key_btreemap, serialize_qualified_btreemap, ArgumentInfo, ArgumentKind,
+    Qualified, QualifiedBaseType, QualifiedTypeName, QualifiedTypeReference,
 };
