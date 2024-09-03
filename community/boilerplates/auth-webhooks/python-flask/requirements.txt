@@ -5,3 +5,4 @@ itsdangerous==0.24
 Jinja2==2.10
 MarkupSafe==1.0
 Werkzeug==0.14.1
+zipp>=3.19.1 # not directly required, pinned by Snyk to avoid a vulnerability
