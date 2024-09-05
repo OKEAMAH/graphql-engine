@@ -13347,14 +13347,14 @@ __metadata:
   languageName: node
   linkType: hard
 
-"axios@npm:1.7.5":
-  version: 1.7.5
-  resolution: "axios@npm:1.7.5"
+"axios@npm:1.7.6":
+  version: 1.7.6
+  resolution: "axios@npm:1.7.6"
   dependencies:
     follow-redirects: ^1.15.6
     form-data: ^4.0.0
     proxy-from-env: ^1.1.0
-  checksum: 2859fe01437cf133eee35571abc1d4b5224bb13e530e66cb3581ca226e170541dd5eef9f46abb41592cee0a2f54930c9e4978354e0cf1064748fc20d9a05e9d5
+  checksum: a40f63fcf3ea1a171c762d0ad93f9b4754ef7361bcb5eca17cc1b7cb465a515d15c11530a01bd496893fd5c7c6cf2916f55b422d6ff82da46fcaaa1961632e6e
   languageName: node
   linkType: hard
 
@@ -19409,12 +19409,12 @@ __metadata:
   linkType: hard
 
 "follow-redirects@npm:^1.0.0, follow-redirects@npm:^1.14.0, follow-redirects@npm:^1.14.9, follow-redirects@npm:^1.15.0, follow-redirects@npm:^1.15.6":
-  version: 1.15.6
-  resolution: "follow-redirects@npm:1.15.6"
+  version: 1.15.8
+  resolution: "follow-redirects@npm:1.15.8"
   peerDependenciesMeta:
     debug:
       optional: true
-  checksum: a62c378dfc8c00f60b9c80cab158ba54e99ba0239a5dd7c81245e5a5b39d10f0c35e249c3379eae719ff0285fff88c365dd446fab19dee771f1d76252df1bbf5
+  checksum: 14ea00a27257609328860f7792f4c2ba54e636cbce28ac4ae1d6b039d1f8285253081e43ffd29f7c2bf8854e95ab8f9d1db4e800c90a09d9ee78f75364a06deb
   languageName: node
   linkType: hard
 
@@ -19833,7 +19833,7 @@ __metadata:
     apollo-link-ws: 1.0.20
     autoprefixer: 10.4.13
     await-to-js: ^3.0.0
-    axios: 1.7.5
+    axios: 1.7.6
     babel-jest: 29.4.3
     babel-loader: 8.1.0
     babel-plugin-istanbul: 5.2.0
@@ -19885,7 +19885,7 @@ __metadata:
     graphiql: 1.4.7
     graphiql-code-exporter: 2.0.8
     graphiql-explorer: 0.6.2
-    graphql: 14.6.0
+    graphql: 14.7.0
     graphql-mqtt-subscriptions: ^1.2.0
     graphql-scalars: ^1.10.0
     graphql-subscriptions: ^2.0.0
@@ -19938,7 +19938,7 @@ __metadata:
     path-browserify: ^1.0.1
     piping: 0.3.2
     pluralize: ^8.0.0
-    postcss: 8.4.31
+    postcss: 8.4.32
     posthog-js: ^1.4.3
     prettier: ^2.6.2
     pretty-error: 1.2.0
@@ -19995,7 +19995,7 @@ __metadata:
     remark-slug: 6.1.0
     reselect: ^4.0.0
     sanitize-filename: 1.6.3
-    semver: 5.7.2
+    semver: 6.3.1
     sql-formatter: 2.3.3
     start-server-and-test: ^1.15.3
     storybook: ^7.0.7
@@ -21075,12 +21075,12 @@ __metadata:
   languageName: node
   linkType: hard
 
-"graphql@npm:14.6.0":
-  version: 14.6.0
-  resolution: "graphql@npm:14.6.0"
+"graphql@npm:14.7.0":
+  version: 14.7.0
+  resolution: "graphql@npm:14.7.0"
   dependencies:
     iterall: ^1.2.2
-  checksum: 84d61357a61e0f3108a20d4607446bfee4cab4ebdec34e073df6ab3c92a16a4b1f6b1fe74e6adf34e3c3760d947be0bf42b1ab6ae80ce2b5c767d5418249d65a
+  checksum: e5f4e60799421a573904f390e1ec0aa76360f751688dbbe62e9c35baa0d3727c8d59a659bfc524f126dffe3518da87fd8ecaa78c94fd5c0fe4e035c670745242
   languageName: node
   linkType: hard
 
@@ -27029,6 +27029,15 @@ __metadata:
   languageName: node
   linkType: hard
 
+"nanoid@npm:^3.3.7":
+  version: 3.3.7
+  resolution: "nanoid@npm:3.3.7"
+  bin:
+    nanoid: bin/nanoid.cjs
+  checksum: d36c427e530713e4ac6567d488b489a36582ef89da1d6d4e3b87eded11eb10d7042a877958c6f104929809b2ab0bafa17652b076cdf84324aa75b30b722204f2
+  languageName: node
+  linkType: hard
+
 "nanomatch@npm:^1.2.9":
   version: 1.2.13
   resolution: "nanomatch@npm:1.2.13"
@@ -29314,14 +29323,14 @@ __metadata:
   languageName: node
   linkType: hard
 
-"postcss@npm:8.4.31":
-  version: 8.4.31
-  resolution: "postcss@npm:8.4.31"
+"postcss@npm:8.4.32":
+  version: 8.4.32
+  resolution: "postcss@npm:8.4.32"
   dependencies:
-    nanoid: ^3.3.6
+    nanoid: ^3.3.7
     picocolors: ^1.0.0
     source-map-js: ^1.0.2
-  checksum: 1d8611341b073143ad90486fcdfeab49edd243377b1f51834dc4f6d028e82ce5190e4f11bb2633276864503654fb7cab28e67abdc0fbf9d1f88cad4a0ff0beea
+  checksum: 220d9d0bf5d65be7ed31006c523bfb11619461d296245c1231831f90150aeb4a31eab9983ac9c5c89759a3ca8b60b3e0d098574964e1691673c3ce5c494305ae
   languageName: node
   linkType: hard
 
@@ -32719,12 +32728,12 @@ __metadata:
   languageName: node
   linkType: hard
 
-"semver@npm:5.7.2":
-  version: 5.7.2
-  resolution: "semver@npm:5.7.2"
+"semver@npm:6.3.1, semver@npm:^6.3.1":
+  version: 6.3.1
+  resolution: "semver@npm:6.3.1"
   bin:
-    semver: bin/semver
-  checksum: fb4ab5e0dd1c22ce0c937ea390b4a822147a9c53dbd2a9a0132f12fe382902beef4fbf12cf51bb955248d8d15874ce8cd89532569756384f994309825f10b686
+    semver: bin/semver.js
+  checksum: ae47d06de28836adb9d3e25f22a92943477371292d9b665fb023fae278d345d508ca1958232af086d85e0155aee22e313e100971898bbb8d5d89b8b1d4054ca2
   languageName: node
   linkType: hard
 
@@ -32756,15 +32765,6 @@ __metadata:
   bin:
     semver: ./bin/semver.js
   checksum: 1b26ecf6db9e8292dd90df4e781d91875c0dcc1b1909e70f5d12959a23c7eebb8f01ea581c00783bbee72ceeaad9505797c381756326073850dc36ed284b21b9
-  languageName: node
-  linkType: hard
-
-"semver@npm:^6.3.1":
-  version: 6.3.1
-  resolution: "semver@npm:6.3.1"
-  bin:
-    semver: bin/semver.js
-  checksum: ae47d06de28836adb9d3e25f22a92943477371292d9b665fb023fae278d345d508ca1958232af086d85e0155aee22e313e100971898bbb8d5d89b8b1d4054ca2
   languageName: node
   linkType: hard
 
