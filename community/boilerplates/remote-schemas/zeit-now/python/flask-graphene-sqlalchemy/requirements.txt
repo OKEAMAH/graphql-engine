@@ -4,3 +4,4 @@ gunicorn==21.2.0
 sqlalchemy
 psycopg2
 graphene[sqlalchemy]
+zipp>=3.19.1 # not directly required, pinned by Snyk to avoid a vulnerability
