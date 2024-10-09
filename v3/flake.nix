@@ -7,7 +7,6 @@
 
     crane = {
       url = "github:ipetkov/crane";
-      inputs.nixpkgs.follows = "nixpkgs";
     };
 
     rust-overlay = {
@@ -167,6 +166,7 @@
 
               # Rust
               pkgs.bacon
+              pkgs.cargo-audit
               pkgs.cargo-edit
               pkgs.cargo-expand
               pkgs.cargo-flamegraph

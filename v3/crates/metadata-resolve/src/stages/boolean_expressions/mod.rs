@@ -10,7 +10,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use lang_graphql::ast::common as ast;
 use open_dds::{boolean_expression::BooleanExpressionOperand, types::CustomTypeName};
 
-use crate::stages::{graphql_config, scalar_boolean_expressions, type_permissions};
+use crate::stages::{graphql_config, relationships, scalar_boolean_expressions, type_permissions};
 use crate::Qualified;
 
 pub use types::{
@@ -30,12 +30,14 @@ pub fn resolve(
     mut graphql_types: BTreeSet<ast::TypeName>,
     graphql_config: &graphql_config::GraphqlConfig,
     object_types: &type_permissions::ObjectTypesWithPermissions,
+    relationships: &relationships::Relationships,
 ) -> Result<BooleanExpressionsOutput, BooleanExpressionError> {
     let mut raw_boolean_expression_types = BTreeMap::new();
 
     // first we collect all the boolean_expression_types
     // so we have a full set to refer to when resolving them
     for open_dds::accessor::QualifiedObject {
+        path: _,
         subgraph,
         object: boolean_expression_type,
     } in &metadata_accessor.boolean_expression_types
@@ -63,6 +65,7 @@ pub fn resolve(
                 object_types,
                 boolean_expression_scalar_types,
                 &raw_boolean_expression_types,
+                relationships,
                 graphql_config,
                 &mut graphql_types,
             )?;

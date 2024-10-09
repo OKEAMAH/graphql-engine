@@ -1018,6 +1018,22 @@ input_file: crates/metadata-resolve/tests/passing/aggregate_expressions/root_fie
                 ),
             }: ModelWithPermissions {
                 model: Model {
+                    path: JSONPath(
+                        [
+                            Key(
+                                "subgraphs",
+                            ),
+                            Index(
+                                0,
+                            ),
+                            Key(
+                                "objects",
+                            ),
+                            Index(
+                                0,
+                            ),
+                        ],
+                    ),
                     name: Qualified {
                         subgraph: SubgraphName(
                             "default",
@@ -1341,6 +1357,7 @@ input_file: crates/metadata-resolve/tests/passing/aggregate_expressions/root_fie
                                     supports_explaining_mutations: true,
                                     supports_nested_object_filtering: false,
                                     supports_nested_object_aggregations: false,
+                                    supports_nested_array_filtering: false,
                                 },
                             },
                             collection: CollectionName(
@@ -2167,8 +2184,8 @@ input_file: crates/metadata-resolve/tests/passing/aggregate_expressions/root_fie
             objects: {},
             scalars: {},
         },
-        order_by_expressions: OrderByExpressions(
-            {
+        order_by_expressions: OrderByExpressions {
+            objects: {
                 Qualified {
                     subgraph: SubgraphName(
                         "default",
@@ -2180,7 +2197,7 @@ input_file: crates/metadata-resolve/tests/passing/aggregate_expressions/root_fie
                             ),
                         ),
                     ),
-                }: OrderByExpression {
+                }: ObjectOrderByExpression {
                     identifier: Qualified {
                         subgraph: SubgraphName(
                             "default",
@@ -2311,7 +2328,7 @@ input_file: crates/metadata-resolve/tests/passing/aggregate_expressions/root_fie
                     ),
                 },
             },
-        ),
+        },
         aggregate_expressions: {
             Qualified {
                 subgraph: SubgraphName(
@@ -2592,8 +2609,12 @@ input_file: crates/metadata-resolve/tests/passing/aggregate_expressions/root_fie
             ),
             enable_apollo_federation_fields: false,
             bypass_relation_comparisons_ndc_capability: false,
+            propagate_boolean_expression_deprecation_status: false,
         },
-        pre_parse_plugins: [],
+        plugin_configs: LifecyclePluginConfigs {
+            pre_parse_plugins: [],
+            pre_response_plugins: [],
+        },
         roles: [],
     },
     [],

@@ -319,14 +319,17 @@ pub enum NullableModelPredicate {
 }
 
 impl traits::OpenDd for NullableModelPredicate {
-    fn deserialize(json: serde_json::Value) -> Result<Self, traits::OpenDdDeserializeError> {
+    fn deserialize(
+        json: serde_json::Value,
+        _path: jsonpath::JSONPath,
+    ) -> Result<Self, traits::OpenDdDeserializeError> {
         if json.is_null() {
             Ok(NullableModelPredicate::Null(()))
         } else {
             Ok(NullableModelPredicate::NotNull(
                 serde_path_to_error::deserialize(json).map_err(|e| {
                     traits::OpenDdDeserializeError {
-                        path: traits::JSONPath::from_serde_path(e.path()),
+                        path: jsonpath::JSONPath::from_serde_path(e.path()),
                         error: e.into_inner(),
                     }
                 })?,

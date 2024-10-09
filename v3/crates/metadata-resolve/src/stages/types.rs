@@ -9,20 +9,20 @@ use open_dds::{
     types::CustomTypeName,
 };
 
-use open_dds::plugins::LifecyclePluginHookPreParse;
-
 use crate::types::subgraph::Qualified;
 
 use crate::stages::{
     aggregates, boolean_expressions, command_permissions, graphql_config, model_permissions,
-    object_boolean_expressions, order_by_expressions, relationships, scalar_types,
+    object_boolean_expressions, object_relationships, order_by_expressions, scalar_types,
 };
+
+use super::plugins::LifecyclePluginConfigs;
 
 /// Resolved and validated metadata for a project. Used internally in the v3 server.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub struct Metadata {
     pub object_types:
-        BTreeMap<Qualified<CustomTypeName>, relationships::ObjectTypeWithRelationships>,
+        BTreeMap<Qualified<CustomTypeName>, object_relationships::ObjectTypeWithRelationships>,
     pub scalar_types: BTreeMap<Qualified<CustomTypeName>, scalar_types::ScalarTypeRepresentation>,
     pub models: IndexMap<Qualified<ModelName>, model_permissions::ModelWithPermissions>,
     pub commands: IndexMap<Qualified<CommandName>, command_permissions::CommandWithPermissions>,
@@ -35,6 +35,6 @@ pub struct Metadata {
     pub aggregate_expressions:
         BTreeMap<Qualified<AggregateExpressionName>, aggregates::AggregateExpression>,
     pub graphql_config: graphql_config::GlobalGraphqlConfig,
-    pub pre_parse_plugins: Vec<LifecyclePluginHookPreParse>,
+    pub plugin_configs: LifecyclePluginConfigs,
     pub roles: Vec<Role>,
 }
