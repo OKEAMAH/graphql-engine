@@ -11,6 +11,7 @@ use crate::{
     str_newtype,
     traits::{OpenDd, OpenDdDeserializeError},
     types::{CustomTypeName, Deprecated, FieldName, GraphQlFieldName, GraphQlTypeName},
+    Spanned,
 };
 
 str_newtype!(ModelName over Identifier | doc "The name of data model.");
@@ -231,10 +232,10 @@ pub struct ModelV2 {
 /// Description of how a model maps to a particular data connector
 pub struct ModelSource {
     /// The name of the data connector backing this model.
-    pub data_connector_name: DataConnectorName,
+    pub data_connector_name: Spanned<DataConnectorName>,
 
     /// The collection in the data connector that backs this model.
-    pub collection: CollectionName,
+    pub collection: Spanned<CollectionName>,
 
     /// Mapping from model argument names to data connector collection argument names.
     #[opendd(default)]
@@ -419,6 +420,9 @@ pub struct SubscriptionGraphQlDefinition {
     /// Whether this subscription root field is deprecated.
     /// If set, the deprecation status is added to the subscription root field's graphql schema.
     pub deprecated: Option<Deprecated>,
+    /// Polling interval in milliseconds for the subscription.
+    #[opendd(default = 1000)]
+    pub polling_interval_ms: u64,
 }
 
 /// A field that can be used to order the objects in a model.
@@ -441,9 +445,12 @@ pub enum EnableAllOrSpecific<T> {
 }
 
 impl<'de, T: serde::Deserialize<'de> + JsonSchema> OpenDd for EnableAllOrSpecific<T> {
-    fn deserialize(json: serde_json::Value) -> Result<Self, OpenDdDeserializeError> {
+    fn deserialize(
+        json: serde_json::Value,
+        _path: jsonpath::JSONPath,
+    ) -> Result<Self, OpenDdDeserializeError> {
         serde_path_to_error::deserialize(json).map_err(|e| OpenDdDeserializeError {
-            path: open_dds::traits::JSONPath::from_serde_path(e.path()),
+            path: jsonpath::JSONPath::from_serde_path(e.path()),
             error: e.into_inner(),
         })
     }

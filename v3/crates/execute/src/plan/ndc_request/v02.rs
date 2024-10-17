@@ -12,10 +12,10 @@ use super::super::mutation;
 use super::super::query;
 use super::super::relationships;
 use crate::error::{FieldError, FieldInternalError};
-use ir::VariableName;
+use plan_types::VariableName;
 
 pub fn make_query_request(
-    query_execution_plan: query::ResolvedQueryExecutionPlan<'_>,
+    query_execution_plan: query::ResolvedQueryExecutionPlan,
 ) -> Result<ndc_models_v02::QueryRequest, FieldError> {
     let query_request = ndc_models_v02::QueryRequest {
         collection: ndc_models_v02::CollectionName::from(query_execution_plan.collection.as_str()),
@@ -239,7 +239,7 @@ pub fn make_expression(
             })
         }
         filter::ResolvedFilterExpression::LocalFieldComparison(
-            ir::LocalFieldComparison::BinaryComparison {
+            plan_types::LocalFieldComparison::BinaryComparison {
                 column,
                 operator,
                 value,
@@ -271,7 +271,7 @@ pub fn make_expression(
             })
         }
         filter::ResolvedFilterExpression::LocalFieldComparison(
-            ir::LocalFieldComparison::UnaryComparison { column, operator },
+            plan_types::LocalFieldComparison::UnaryComparison { column, operator },
         ) => Ok(ndc_models_v02::Expression::UnaryComparisonOperator {
             column: make_comparison_target(column),
             operator: match operator {
@@ -297,10 +297,10 @@ pub fn make_expression(
 }
 
 fn make_comparison_target(
-    comparison_target: ir::ComparisonTarget,
+    comparison_target: plan_types::ComparisonTarget,
 ) -> ndc_models_v02::ComparisonTarget {
     match comparison_target {
-        ir::ComparisonTarget::Column { name, field_path } => {
+        plan_types::ComparisonTarget::Column { name, field_path } => {
             ndc_models_v02::ComparisonTarget::Column {
                 name: ndc_models_v02::FieldName::new(name.into_inner()),
                 field_path: if field_path.is_empty() {
@@ -318,12 +318,18 @@ fn make_comparison_target(
     }
 }
 
-fn make_comparison_value(comparison_value: ir::ComparisonValue) -> ndc_models_v02::ComparisonValue {
+fn make_comparison_value(
+    comparison_value: plan_types::ComparisonValue,
+) -> ndc_models_v02::ComparisonValue {
     match comparison_value {
-        ir::ComparisonValue::Scalar { value } => ndc_models_v02::ComparisonValue::Scalar { value },
-        ir::ComparisonValue::Variable { name } => ndc_models_v02::ComparisonValue::Variable {
-            name: ndc_models_v02::VariableName::from(name.0.as_str()),
-        },
+        plan_types::ComparisonValue::Scalar { value } => {
+            ndc_models_v02::ComparisonValue::Scalar { value }
+        }
+        plan_types::ComparisonValue::Variable { name } => {
+            ndc_models_v02::ComparisonValue::Variable {
+                name: ndc_models_v02::VariableName::from(name.0.as_str()),
+            }
+        }
     }
 }
 
@@ -396,7 +402,10 @@ fn make_nested_array(
 }
 
 pub fn make_collection_relationships(
-    collection_relationships: BTreeMap<ir::NdcRelationshipName, relationships::Relationship>,
+    collection_relationships: BTreeMap<
+        plan_types::NdcRelationshipName,
+        relationships::Relationship,
+    >,
 ) -> BTreeMap<ndc_models_v02::RelationshipName, ndc_models_v02::Relationship> {
     collection_relationships
         .into_iter()
@@ -436,14 +445,18 @@ fn make_relationship(relationship: relationships::Relationship) -> ndc_models_v0
     }
 }
 
-fn make_order_by(order_by_elements: Vec<ir::OrderByElement>) -> ndc_models_v02::OrderBy {
+fn make_order_by(order_by_elements: Vec<graphql_ir::OrderByElement>) -> ndc_models_v02::OrderBy {
     ndc_models_v02::OrderBy {
         elements: order_by_elements
             .into_iter()
             .map(|element| ndc_models_v02::OrderByElement {
                 order_direction: match element.order_direction {
-                    schema::ModelOrderByDirection::Asc => ndc_models_v02::OrderDirection::Asc,
-                    schema::ModelOrderByDirection::Desc => ndc_models_v02::OrderDirection::Desc,
+                    graphql_schema::ModelOrderByDirection::Asc => {
+                        ndc_models_v02::OrderDirection::Asc
+                    }
+                    graphql_schema::ModelOrderByDirection::Desc => {
+                        ndc_models_v02::OrderDirection::Desc
+                    }
                 },
                 target: make_order_by_target(element.target),
             })
@@ -451,9 +464,9 @@ fn make_order_by(order_by_elements: Vec<ir::OrderByElement>) -> ndc_models_v02::
     }
 }
 
-fn make_order_by_target(target: ir::OrderByTarget) -> ndc_models_v02::OrderByTarget {
+fn make_order_by_target(target: graphql_ir::OrderByTarget) -> ndc_models_v02::OrderByTarget {
     match target {
-        ir::OrderByTarget::Column {
+        graphql_ir::OrderByTarget::Column {
             name,
             field_path,
             relationship_path,
@@ -509,20 +522,20 @@ fn make_order_by_target(target: ir::OrderByTarget) -> ndc_models_v02::OrderByTar
 
 /// Translates the internal IR 'AggregateSelectionSet' into an NDC query aggregates selection
 fn make_aggregates(
-    aggregate_selection_set: ir::AggregateSelectionSet,
+    aggregate_selection_set: graphql_ir::AggregateSelectionSet,
 ) -> IndexMap<ndc_models_v02::FieldName, ndc_models_v02::Aggregate> {
     aggregate_selection_set
         .fields
         .into_iter()
         .map(|(field_name, aggregate_selection)| {
             let aggregate = match aggregate_selection {
-                ir::AggregateFieldSelection::Count { column_path, .. } => {
+                graphql_ir::AggregateFieldSelection::Count { column_path, .. } => {
                     make_count_aggregate(column_path, false)
                 }
-                ir::AggregateFieldSelection::CountDistinct { column_path, .. } => {
+                graphql_ir::AggregateFieldSelection::CountDistinct { column_path, .. } => {
                     make_count_aggregate(column_path, true)
                 }
-                ir::AggregateFieldSelection::AggregationFunction {
+                graphql_ir::AggregateFieldSelection::AggregationFunction {
                     function_name,
                     column_path,
                 } => {

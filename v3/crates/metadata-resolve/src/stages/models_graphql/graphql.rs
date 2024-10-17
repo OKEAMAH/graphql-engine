@@ -1,10 +1,12 @@
+use std::sync::Arc;
+
 use open_dds::aggregates::AggregateExpressionName;
 use open_dds::data_connector::DataConnectorName;
 use open_dds::models::{ModelGraphQlDefinitionV2, ModelName};
 use open_dds::relationships::{ModelRelationshipTarget, RelationshipTarget};
 
 use super::types::{
-    LimitFieldGraphqlConfig, ModelGraphQlApi, ModelGraphqlApiArgumentsConfig,
+    LimitFieldGraphqlConfig, ModelGraphQlApi, ModelGraphqlApiArgumentsConfig, ModelGraphqlIssue,
     ModelOrderByExpression, OffsetFieldGraphqlConfig, OrderByExpressionInfo,
     SelectAggregateGraphQlDefinition, SelectManyGraphQlDefinition, SelectUniqueGraphQlDefinition,
     SubscriptionGraphQlDefinition, UniqueIdentifierField,
@@ -15,6 +17,7 @@ use crate::stages::order_by_expressions::OrderByExpressions;
 use crate::stages::{data_connector_scalar_types, graphql_config, models, object_types};
 use crate::types::error::Error;
 use crate::types::subgraph::Qualified;
+use crate::Warning;
 use indexmap::IndexMap;
 use lang_graphql::ast::common::{self as ast};
 
@@ -34,6 +37,7 @@ pub(crate) fn resolve_model_graphql_api(
     order_by_expressions: &OrderByExpressions,
     graphql_config: &graphql_config::GraphqlConfig,
     configuration: &Configuration,
+    issues: &mut Vec<Warning>,
 ) -> Result<ModelGraphQlApi, Error> {
     let model_name = &model.name;
     let mut graphql_api = ModelGraphQlApi::default();
@@ -107,9 +111,9 @@ pub(crate) fn resolve_model_graphql_api(
         .source
         .as_ref()
         .map(
-            |model_source: &models::ModelSource| -> Result<Option<ModelOrderByExpression>, Error> {
+            |model_source: &Arc<models::ModelSource>| -> Result<Option<ModelOrderByExpression>, Error> {
                 let order_by_expression = model.order_by_expression.as_ref().map(|n|
-                    order_by_expressions.0.get(n)
+                    order_by_expressions.objects.get(n)
                     .ok_or_else(|| models::ModelsError::UnknownOrderByExpressionIdentifier {
                         model_name: model.name.clone(),
                         order_by_expression_identifier: n.clone()
@@ -218,39 +222,40 @@ pub(crate) fn resolve_model_graphql_api(
     }
 
     // record select_aggregate root field
-    graphql_api.select_aggregate = model_graphql_definition
-        .aggregate
-        .as_ref()
-        .zip(aggregate_expression_name.as_ref()) // Only matters if we have an aggregate expression specified
-        .map(
-            |(graphql_aggregate, aggregate_expression_name)| -> Result<_, Error> {
-                // Check that the filter input field name is configured in graphql config
-                let filter_input_field_name = graphql_config
-                    .query
-                    .aggregate_config
-                    .as_ref()
-                    .map(|agg| agg.filter_input_field_name.clone())
-                    .ok_or_else::<Error, _>(|| Error::GraphqlConfigError {
-                        graphql_config_error:
-                            graphql_config::GraphqlConfigError::MissingAggregateFilterInputFieldNameInGraphqlConfig,
-                    })?;
+    graphql_api.select_aggregate = match (
+        &model_graphql_definition.aggregate,
+        aggregate_expression_name,
+        &graphql_config.query.aggregate_config,
+    ) {
+        (Some(_graphql_aggregate), Some(_aggregate_expression_name), None) => {
+            // If the user has an aggregate expression and has specified the graphql select aggregate root field
+            // but is missing the global aggregate GraphqlConfig, this is probably a mistake and so let's raise
+            // a warning for them
+            issues.push(Warning::from(
+                ModelGraphqlIssue::MissingAggregateFilterInputFieldNameInGraphqlConfig {
+                    model_name: model_name.clone(),
+                },
+            ));
+            None
+        }
+        (Some(graphql_aggregate), Some(aggregate_expression_name), Some(aggregate_config)) => {
+            let subscription = graphql_aggregate
+                .subscription
+                .as_ref()
+                .map(|s| resolve_subscription_graphql_api(s, configuration))
+                .transpose()?;
 
-                let subscription = graphql_aggregate
-                    .subscription
-                    .as_ref()
-                    .map(|s| resolve_subscription_graphql_api(s, configuration))
-                    .transpose()?;
-                Ok(SelectAggregateGraphQlDefinition {
-                    query_root_field: mk_name(graphql_aggregate.query_root_field.as_str())?,
-                    description: graphql_aggregate.description.clone(),
-                    deprecated: graphql_aggregate.deprecated.clone(),
-                    aggregate_expression_name: aggregate_expression_name.clone(),
-                    filter_input_field_name,
-                    subscription,
-                })
-            },
-        )
-        .transpose()?;
+            Some(SelectAggregateGraphQlDefinition {
+                query_root_field: mk_name(graphql_aggregate.query_root_field.as_str())?,
+                description: graphql_aggregate.description.clone(),
+                deprecated: graphql_aggregate.deprecated.clone(),
+                aggregate_expression_name: aggregate_expression_name.clone(),
+                filter_input_field_name: aggregate_config.filter_input_field_name.clone(),
+                subscription,
+            })
+        }
+        _ => None,
+    };
 
     // record limit and offset field names
     graphql_api.limit_field = graphql_config
@@ -341,11 +346,13 @@ fn resolve_subscription_graphql_api(
         root_field,
         description,
         deprecated,
+        polling_interval_ms,
     } = subscription;
     let root_field_name = mk_name(root_field.as_str())?;
     Ok(SubscriptionGraphQlDefinition {
         root_field: root_field_name,
         description: description.clone(),
         deprecated: deprecated.clone(),
+        polling_interval_ms: *polling_interval_ms,
     })
 }

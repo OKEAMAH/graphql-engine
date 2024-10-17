@@ -1,9 +1,13 @@
-use crate::types::subgraph::{Qualified, QualifiedTypeReference};
-use open_dds::types::{CustomTypeName, GraphQlTypeName, OperatorName, TypeName};
+use crate::{
+    types::subgraph::{Qualified, QualifiedTypeReference},
+    QualifiedTypeName,
+};
+use open_dds::types::{CustomTypeName, GraphQlTypeName, OperatorName};
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
 
 use lang_graphql::ast::common as ast;
+use serde_with::serde_as;
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
 pub struct ScalarBooleanExpressionsOutput {
@@ -12,18 +16,20 @@ pub struct ScalarBooleanExpressionsOutput {
     pub graphql_types: BTreeSet<ast::TypeName>,
 }
 
+#[serde_as]
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
 pub struct ResolvedScalarBooleanExpressionType {
     pub name: Qualified<CustomTypeName>,
 
     /// The OpenDD type this scalar refers to
-    pub representation: TypeName,
+    pub operand_type: QualifiedTypeName,
 
     /// The list of comparison operators that can used on this scalar type
     pub comparison_operators: BTreeMap<OperatorName, QualifiedTypeReference>,
 
     /// The list of mappings between OpenDD operator names and the names used in the data
     /// connector schema
+    #[serde_as(as = "Vec<(_, _)>")]
     pub data_connector_operator_mappings: BTreeMap<
         Qualified<open_dds::data_connector::DataConnectorName>,
         open_dds::boolean_expression::DataConnectorOperatorMapping,
