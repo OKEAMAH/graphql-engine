@@ -1,7 +1,7 @@
 use crate::types::error::{Error, TypePredicateError};
 
 use crate::stages::{
-    boolean_expressions, data_connectors, models, object_types, relationships,
+    boolean_expressions, data_connectors, models, object_relationships, object_types,
     scalar_boolean_expressions,
 };
 use crate::types::subgraph::Qualified;
@@ -18,14 +18,21 @@ use std::collections::BTreeMap;
 // we want to know
 // a) does each scalar have mappings for our data connector?
 // b) if we used nested objects, does the data connector have the correct capability?
+// c) if we used nested arrays, does the data connector have the correct capability?
 pub(crate) fn validate_data_connector_with_object_boolean_expression_type(
     data_connector: &data_connectors::DataConnectorLink,
     source_type_mappings: &BTreeMap<Qualified<CustomTypeName>, object_types::TypeMapping>,
     object_boolean_expression_type: &boolean_expressions::ResolvedObjectBooleanExpressionType,
     boolean_expression_types: &boolean_expressions::BooleanExpressionTypes,
-    object_types: &BTreeMap<Qualified<CustomTypeName>, relationships::ObjectTypeWithRelationships>,
+    object_types: &BTreeMap<
+        Qualified<CustomTypeName>,
+        object_relationships::ObjectTypeWithRelationships,
+    >,
     models: &IndexMap<Qualified<ModelName>, models::Model>,
-) -> Result<(), Error> {
+) -> Result<Vec<boolean_expressions::BooleanExpressionIssue>, Error> {
+    // collect any issues found whilst resolving
+    let mut issues = vec![];
+
     if let Some(graphql_config) = &object_boolean_expression_type.graphql {
         for (field_name, object_comparison_expression_info) in &graphql_config.object_fields {
             // look up the leaf boolean expression type
@@ -41,9 +48,12 @@ pub(crate) fn validate_data_connector_with_object_boolean_expression_type(
                     })
                 })?;
 
-            // this must be a nested object, so let's check our data connector is ready for that
-            if !data_connector.capabilities.supports_nested_object_filtering {
-                return Err(
+            match object_comparison_expression_info.field_kind {
+                boolean_expressions::ObjectComparisonKind::Object => {
+                    // throw an error if our data connector does not support filtering nested
+                    // objects
+                    if !data_connector.capabilities.supports_nested_object_filtering {
+                        return Err(
                     Error::from(boolean_expressions::BooleanExpressionError::NoNestedObjectFilteringCapabilitiesDefined {
                         parent_type_name: object_boolean_expression_type.name.clone(),
                         nested_type_name: object_comparison_expression_info
@@ -51,6 +61,21 @@ pub(crate) fn validate_data_connector_with_object_boolean_expression_type(
                             .clone(),
                         data_connector_name: data_connector.name.clone(),
                         }));
+                    }
+                }
+                boolean_expressions::ObjectComparisonKind::Array => {
+                    // raise a warning if our data connector does not support filtering nested arrays
+                    if !data_connector.capabilities.supports_nested_array_filtering {
+                        issues.push(
+                    boolean_expressions::BooleanExpressionIssue::NoNestedArrayFilteringCapabilitiesDefined {
+                        parent_type_name: object_boolean_expression_type.name.clone(),
+                        nested_type_name: object_comparison_expression_info
+                            .object_type_name
+                            .clone(),
+                        data_connector_name: data_connector.name.clone(),
+                        });
+                    }
+                }
             }
 
             // This nested object field should not contain any relationship comparisons
@@ -69,14 +94,14 @@ pub(crate) fn validate_data_connector_with_object_boolean_expression_type(
             }
 
             // continue checking the nested object...
-            validate_data_connector_with_object_boolean_expression_type(
+            issues.extend(validate_data_connector_with_object_boolean_expression_type(
                 data_connector,
                 source_type_mappings,
                 leaf_boolean_expression,
                 boolean_expression_types,
                 object_types,
                 models,
-            )?;
+            )?);
         }
 
         for (field_name, comparison_expression_info) in &graphql_config.scalar_fields {
@@ -116,7 +141,7 @@ pub(crate) fn validate_data_connector_with_object_boolean_expression_type(
         }
     }
 
-    Ok(())
+    Ok(issues)
 }
 
 // validate comparable relationship field against data connector
@@ -127,7 +152,10 @@ fn validate_data_connector_with_comparable_relationship(
     source_type_mappings: &BTreeMap<Qualified<CustomTypeName>, object_types::TypeMapping>,
     object_boolean_expression_type: &boolean_expressions::ResolvedObjectBooleanExpressionType,
     comparable_relationship: &boolean_expressions::BooleanExpressionComparableRelationship,
-    object_types: &BTreeMap<Qualified<CustomTypeName>, relationships::ObjectTypeWithRelationships>,
+    object_types: &BTreeMap<
+        Qualified<CustomTypeName>,
+        object_relationships::ObjectTypeWithRelationships,
+    >,
     models: &IndexMap<Qualified<ModelName>, models::Model>,
 ) -> Result<(), Error> {
     let underlying_object = object_types
@@ -136,8 +164,9 @@ fn validate_data_connector_with_comparable_relationship(
             data_type: object_boolean_expression_type.object_type.clone(),
         })?;
 
-    let relationship_field_name =
-        relationships::make_relationship_field_name(&comparable_relationship.relationship_name)?;
+    let relationship_field_name = object_relationships::make_relationship_field_name(
+        &comparable_relationship.relationship_name,
+    )?;
 
     let relationship = underlying_object
         .relationship_fields
@@ -149,7 +178,7 @@ fn validate_data_connector_with_comparable_relationship(
             },
         })?;
 
-    if let relationships::RelationshipTarget::Model(relationship_target_model) =
+    if let object_relationships::RelationshipTarget::Model(relationship_target_model) =
         &relationship.target
     {
         let target_model = models

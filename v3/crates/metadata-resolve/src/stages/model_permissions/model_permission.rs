@@ -6,10 +6,11 @@ use super::types::{
 use crate::helpers::argument::resolve_value_expression_for_argument;
 use crate::helpers::type_mappings;
 use crate::helpers::typecheck;
+use crate::helpers::typecheck::typecheck_value_expression;
 use crate::helpers::types::mk_name;
 use crate::stages::{
     boolean_expressions, data_connector_scalar_types, data_connectors, models, models_graphql,
-    object_boolean_expressions, object_types, relationships, scalar_types, type_permissions,
+    object_boolean_expressions, object_relationships, object_types, scalar_types, type_permissions,
 };
 use crate::types::error::{Error, TypePredicateError};
 use crate::types::permission::ValueExpression;
@@ -32,6 +33,7 @@ use ref_cast::RefCast;
 use std::collections::BTreeMap;
 
 fn resolve_model_predicate_with_model(
+    flags: &open_dds::flags::Flags,
     model_predicate: &open_dds::permissions::ModelPredicate,
     model: &models::Model,
     subgraph: &SubgraphName,
@@ -42,7 +44,10 @@ fn resolve_model_predicate_with_model(
         data_connector_scalar_types::ScalarTypeWithRepresentationInfoMap,
     >,
     fields: &IndexMap<FieldName, object_types::FieldDefinition>,
-    object_types: &BTreeMap<Qualified<CustomTypeName>, relationships::ObjectTypeWithRelationships>,
+    object_types: &BTreeMap<
+        Qualified<CustomTypeName>,
+        object_relationships::ObjectTypeWithRelationships,
+    >,
     scalar_types: &BTreeMap<Qualified<CustomTypeName>, scalar_types::ScalarTypeRepresentation>,
     boolean_expression_types: &boolean_expressions::BooleanExpressionTypes,
     models: &IndexMap<Qualified<ModelName>, models_graphql::ModelWithGraphql>,
@@ -98,6 +103,7 @@ fn resolve_model_predicate_with_model(
     )?;
 
     resolve_model_predicate_with_type(
+        flags,
         model_predicate,
         &model.data_type,
         object_type_representation,
@@ -132,6 +138,7 @@ pub fn get_model_source_argument<'a>(
 }
 
 pub fn resolve_model_select_permissions(
+    flags: &open_dds::flags::Flags,
     model: &models::Model,
     subgraph: &SubgraphName,
     model_permissions: &ModelPermissionsV1,
@@ -141,7 +148,10 @@ pub fn resolve_model_select_permissions(
         Qualified<DataConnectorName>,
         data_connector_scalar_types::ScalarTypeWithRepresentationInfoMap,
     >,
-    object_types: &BTreeMap<Qualified<CustomTypeName>, relationships::ObjectTypeWithRelationships>,
+    object_types: &BTreeMap<
+        Qualified<CustomTypeName>,
+        object_relationships::ObjectTypeWithRelationships,
+    >,
     scalar_types: &BTreeMap<Qualified<CustomTypeName>, scalar_types::ScalarTypeRepresentation>,
     models: &IndexMap<Qualified<ModelName>, models_graphql::ModelWithGraphql>,
     object_boolean_expression_types: &BTreeMap<
@@ -156,6 +166,7 @@ pub fn resolve_model_select_permissions(
             let resolved_predicate = match &select.filter {
                 NullableModelPredicate::NotNull(model_predicate) => {
                     resolve_model_predicate_with_model(
+                        flags,
                         model_predicate,
                         model,
                         subgraph,
@@ -203,6 +214,7 @@ pub fn resolve_model_select_permissions(
                 match model.arguments.get(&argument_preset.argument) {
                     Some(argument) => {
                         let value_expression = resolve_value_expression_for_argument(
+                            flags,
                             &argument_preset.argument,
                             &argument_preset.value,
                             &argument.argument_type,
@@ -262,15 +274,19 @@ pub fn resolve_model_select_permissions(
 /// re-add in future. Because this function takes the `data_connector_field_mappings` as an input,
 /// many of the errors thrown in `resolve_model_predicate` are pushed out.
 pub(crate) fn resolve_model_predicate_with_type(
+    flags: &open_dds::flags::Flags,
     model_predicate: &open_dds::permissions::ModelPredicate,
     type_name: &Qualified<CustomTypeName>,
-    object_type_representation: &relationships::ObjectTypeWithRelationships,
+    object_type_representation: &object_relationships::ObjectTypeWithRelationships,
     boolean_expression_graphql: Option<&boolean_expressions::BooleanExpressionGraphqlConfig>,
     data_connector_field_mappings: &BTreeMap<FieldName, object_types::FieldMapping>,
     data_connector_link: &data_connectors::DataConnectorLink,
     subgraph: &SubgraphName,
     scalars: &data_connector_scalar_types::ScalarTypeWithRepresentationInfoMap,
-    object_types: &BTreeMap<Qualified<CustomTypeName>, relationships::ObjectTypeWithRelationships>,
+    object_types: &BTreeMap<
+        Qualified<CustomTypeName>,
+        object_relationships::ObjectTypeWithRelationships,
+    >,
     scalar_types: &BTreeMap<Qualified<CustomTypeName>, scalar_types::ScalarTypeRepresentation>,
     boolean_expression_types: &boolean_expressions::BooleanExpressionTypes,
     models: &IndexMap<Qualified<ModelName>, models_graphql::ModelWithGraphql>,
@@ -284,7 +300,6 @@ pub(crate) fn resolve_model_predicate_with_type(
                 value,
             },
         ) => {
-            // TODO: (anon) typecheck the value expression with the field
             // TODO: resolve the "in" operator too (ndc_models::BinaryArrayComparisonOperator)
 
             // Determine field_mapping for the predicate field
@@ -361,21 +376,27 @@ pub(crate) fn resolve_model_predicate_with_type(
                 }
             }?;
 
-            let value_expression = match value {
-                open_dds::permissions::ValueExpression::Literal(json_value) => {
-                    ValueExpression::Literal(json_value.clone())
-                }
-                open_dds::permissions::ValueExpression::SessionVariable(session_variable) => {
-                    ValueExpression::SessionVariable(session_variable.clone())
-                }
-            };
-
             let field_definition = fields.get(field).ok_or_else(|| Error::TypePredicateError {
                 type_predicate_error: TypePredicateError::UnknownFieldInTypePredicate {
                     field_name: field.clone(),
                     type_name: type_name.clone(),
                 },
             })?;
+
+            // typecheck the `open_dds::permissions::ValueExpression` with the field
+            typecheck_value_expression(&field_definition.field_type, value)?;
+
+            let value_expression = match value {
+                open_dds::permissions::ValueExpression::Literal(json_value) => {
+                    ValueExpression::Literal(json_value.clone())
+                }
+                open_dds::permissions::ValueExpression::SessionVariable(session_variable) => {
+                    ValueExpression::SessionVariable(hasura_authn_core::SessionVariableReference {
+                        name: session_variable.clone(),
+                        passed_as_json: flags.json_session_variables,
+                    })
+                }
+            };
 
             Ok(ModelPredicate::BinaryFieldComparison {
                 field: field.clone(),
@@ -434,21 +455,21 @@ pub(crate) fn resolve_model_predicate_with_type(
                     })?;
 
                 match &relationship.target {
-                    relationships::RelationshipTarget::Command { .. } => {
+                    object_relationships::RelationshipTarget::Command { .. } => {
                         Err(Error::UnsupportedFeature {
                             message: "Predicate cannot be built using command relationships"
                                 .to_string(),
                         })
                     }
-                    relationships::RelationshipTarget::ModelAggregate { .. } => {
+                    object_relationships::RelationshipTarget::ModelAggregate { .. } => {
                         Err(Error::UnsupportedFeature {
                             message:
                                 "Predicate cannot be built using model aggregate relationships"
                                     .to_string(),
                         })
                     }
-                    relationships::RelationshipTarget::Model(
-                        relationships::ModelRelationshipTarget {
+                    object_relationships::RelationshipTarget::Model(
+                        object_relationships::ModelRelationshipTarget {
                             model_name,
                             relationship_type,
                             target_typename,
@@ -528,7 +549,7 @@ pub(crate) fn resolve_model_predicate_with_type(
                             }
 
                             let target_source = ModelTargetSource::from_model_source(
-                                target_model_source,
+                                &target_model_source.clone(),
                                 relationship,
                             )?;
 
@@ -629,6 +650,7 @@ pub(crate) fn resolve_model_predicate_with_type(
                             }?;
 
                             let target_model_predicate = resolve_model_predicate_with_type(
+                                flags,
                                 nested_predicate,
                                 &target_model.inner.data_type,
                                 target_object_type,
@@ -670,6 +692,7 @@ pub(crate) fn resolve_model_predicate_with_type(
 
         open_dds::permissions::ModelPredicate::Not(predicate) => {
             let resolved_predicate = resolve_model_predicate_with_type(
+                flags,
                 predicate,
                 type_name,
                 object_type_representation,
@@ -690,6 +713,7 @@ pub(crate) fn resolve_model_predicate_with_type(
             let mut resolved_predicates = Vec::new();
             for predicate in predicates {
                 resolved_predicates.push(resolve_model_predicate_with_type(
+                    flags,
                     predicate,
                     type_name,
                     object_type_representation,
@@ -711,6 +735,7 @@ pub(crate) fn resolve_model_predicate_with_type(
             let mut resolved_predicates = Vec::new();
             for predicate in predicates {
                 resolved_predicates.push(resolve_model_predicate_with_type(
+                    flags,
                     predicate,
                     type_name,
                     object_type_representation,
@@ -841,7 +866,7 @@ fn resolve_binary_operator_for_type<'a>(
 fn remove_object_relationships(
     object_types_with_relationships: &BTreeMap<
         Qualified<CustomTypeName>,
-        relationships::ObjectTypeWithRelationships,
+        object_relationships::ObjectTypeWithRelationships,
     >,
 ) -> type_permissions::ObjectTypesWithPermissions {
     type_permissions::ObjectTypesWithPermissions(
@@ -850,7 +875,7 @@ fn remove_object_relationships(
             .map(
                 |(
                     object_name,
-                    relationships::ObjectTypeWithRelationships {
+                    object_relationships::ObjectTypeWithRelationships {
                         object_type,
                         type_mappings,
                         type_input_permissions,

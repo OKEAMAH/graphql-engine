@@ -1,4 +1,5 @@
-use crate::stages::scalar_boolean_expressions;
+use crate::stages::{aggregate_boolean_expressions, scalar_boolean_expressions};
+use crate::types::error::ShouldBeAnError;
 use crate::types::subgraph::{Qualified, QualifiedTypeReference};
 use lang_graphql::ast::common as ast;
 use open_dds::{
@@ -7,17 +8,56 @@ use open_dds::{
     types::{CustomTypeName, FieldName, OperatorName},
 };
 use serde::{Deserialize, Serialize};
+use serde_with::serde_as;
 use std::collections::{BTreeMap, BTreeSet};
 
 #[derive(Debug, thiserror::Error, Serialize, Deserialize, Clone, PartialEq, Eq)]
-pub enum BooleanExpressionIssue {}
+pub enum BooleanExpressionIssue {
+    #[error("The data connector {data_connector_name} cannot be used for filtering nested array {nested_type_name:} within {parent_type_name:} as it has not defined any capabilities for nested array filtering")]
+    NoNestedArrayFilteringCapabilitiesDefined {
+        parent_type_name: Qualified<CustomTypeName>,
+        nested_type_name: Qualified<CustomTypeName>,
+        data_connector_name: Qualified<DataConnectorName>,
+    },
+    #[error("The underlying type for the field {field_name} is array, but the boolean expression type used for the field is {boolean_expression_type_name}, which is a scalar boolean expression type")]
+    BooleanExpressionArrayFieldComparedWithScalarType {
+        field_name: FieldName,
+        boolean_expression_type_name: Qualified<CustomTypeName>,
+    },
+}
 
+impl ShouldBeAnError for BooleanExpressionIssue {
+    fn should_be_an_error(&self, flags: &open_dds::flags::Flags) -> bool {
+        match self {
+            BooleanExpressionIssue::NoNestedArrayFilteringCapabilitiesDefined { .. } => {
+                flags.require_nested_array_filtering_capability
+            }
+            BooleanExpressionIssue::BooleanExpressionArrayFieldComparedWithScalarType {
+                ..
+            } => flags.disallow_array_field_compared_with_scalar_boolean_type,
+        }
+    }
+}
+
+#[serde_as]
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
 pub struct BooleanExpressionTypes {
+    #[serde_as(as = "Vec<(_, _)>")]
     pub objects: BTreeMap<Qualified<CustomTypeName>, ResolvedObjectBooleanExpressionType>,
+    #[serde_as(as = "Vec<(_, _)>")]
     pub scalars: BTreeMap<
         Qualified<CustomTypeName>,
         scalar_boolean_expressions::ResolvedScalarBooleanExpressionType,
+    >,
+    #[serde_as(as = "Vec<(_, _)>")]
+    pub object_aggregates: BTreeMap<
+        Qualified<CustomTypeName>,
+        aggregate_boolean_expressions::ObjectAggregateBooleanExpression,
+    >,
+    #[serde_as(as = "Vec<(_, _)>")]
+    pub scalar_aggregates: BTreeMap<
+        Qualified<CustomTypeName>,
+        aggregate_boolean_expressions::ScalarAggregateBooleanExpression,
     >,
 }
 
@@ -25,6 +65,7 @@ pub struct BooleanExpressionTypes {
 pub struct BooleanExpressionsOutput {
     pub boolean_expression_types: BooleanExpressionTypes,
     pub graphql_types: BTreeSet<ast::TypeName>,
+    pub issues: Vec<BooleanExpressionIssue>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
@@ -49,6 +90,7 @@ pub enum IncludeLogicalOperators {
     No,
 }
 
+#[serde_as]
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
 pub struct ComparisonExpressionInfo {
     // we reuse this type for ObjectBooleanExpressionType and BooleanExpressionType
@@ -57,6 +99,7 @@ pub struct ComparisonExpressionInfo {
     pub object_type_name: Option<Qualified<CustomTypeName>>,
     pub type_name: ast::TypeName,
     pub operators: BTreeMap<OperatorName, QualifiedTypeReference>,
+    #[serde_as(as = "Vec<(_, _)>")]
     pub operator_mapping:
         BTreeMap<Qualified<DataConnectorName>, BTreeMap<OperatorName, DataConnectorOperatorName>>,
     pub is_null_operator_name: Option<ast::Name>,
